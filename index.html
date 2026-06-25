@@ -121,6 +121,22 @@ select { font-size: 12px; border: 0.5px solid #ccc; border-radius: 8px; padding:
   .cw-sm { height: 100px; }
   table { font-size: 9px; }
 }
+
+/* Modal IA */
+.ia-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center; }
+.ia-modal.open { display:flex; }
+.ia-card { background:#fff; border-radius:16px; padding:24px; max-width:480px; width:90%; position:relative; }
+.ia-title { font-size:15px; font-weight:700; color:#354c00; margin-bottom:4px; }
+.ia-sub { font-size:11px; color:#aaa; margin-bottom:16px; }
+.ia-text { font-size:13px; color:#354c00; line-height:1.7; min-height:80px; background:#f8f8f6; border-radius:10px; padding:14px; margin-bottom:14px; }
+.ia-loading { text-align:center; color:#aaa; font-size:12px; padding:20px; }
+.ia-btns { display:flex; gap:8px; }
+.ia-btn { flex:1; padding:10px; border-radius:10px; border:0.5px solid #e0e0e0; background:#f8f8f6; font-size:12px; font-weight:600; cursor:pointer; color:#354c00; }
+.ia-btn.primary { background:#354c00; color:#fff; border-color:#354c00; }
+.ia-btn:hover { opacity:0.85; }
+.ia-close { position:absolute; top:14px; right:16px; background:none; border:none; font-size:18px; cursor:pointer; color:#aaa; }
+.pulse-ia { display:inline-block; width:8px; height:8px; border-radius:50%; background:#354c00; animation:pulse 1s infinite; margin-right:6px; }
+</style>
 </style>
 </head>
 <body>
@@ -140,6 +156,7 @@ select { font-size: 12px; border: 0.5px solid #ccc; border-radius: 8px; padding:
       <option value="300000">c/5min</option>
     </select>
     <button class="btn" id="refreshBtn">↺ Actualizar</button>
+    <button class="btn" id="aiBtn" onclick="generarResumen()" style="background:#354c00;color:#fff;border-color:#354c00;">🎙 Resumen IA</button>
   </div>
 </div>
 
@@ -954,6 +971,134 @@ window.switchTab = function(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
 };
 
+
+// ── RESUMEN IA ───────────────────────────────────────────
+let iaHablando = false;
+let iaTexto = '';
+
+function cerrarModal() {
+  document.getElementById('iaModal').classList.remove('open');
+  window.speechSynthesis.cancel();
+  iaHablando = false;
+  document.getElementById('ia-voz-btn').textContent = '🔊 Escuchar';
+}
+
+function leerEnVoz() {
+  if (iaHablando) {
+    window.speechSynthesis.cancel();
+    iaHablando = false;
+    document.getElementById('ia-voz-btn').textContent = '🔊 Escuchar';
+    return;
+  }
+  if (!iaTexto) return;
+  const utterance = new SpeechSynthesisUtterance(iaTexto);
+  utterance.lang = 'es-CL';
+  utterance.rate = 0.95;
+  utterance.pitch = 1;
+  // Buscar voz en español
+  const voces = window.speechSynthesis.getVoices();
+  const vozES = voces.find(v => v.lang.startsWith('es')) || voces[0];
+  if (vozES) utterance.voice = vozES;
+  utterance.onend = () => {
+    iaHablando = false;
+    document.getElementById('ia-voz-btn').textContent = '🔊 Escuchar';
+  };
+  window.speechSynthesis.speak(utterance);
+  iaHablando = true;
+  document.getElementById('ia-voz-btn').textContent = '⏹ Detener';
+}
+
+async function generarResumen() {
+  document.getElementById('iaModal').classList.add('open');
+  document.getElementById('ia-text').innerHTML = '<div class="ia-loading"><span class="pulse-ia"></span>Analizando datos en tiempo real...</div>';
+  window.speechSynthesis.cancel();
+  iaHablando = false;
+  document.getElementById('ia-voz-btn').textContent = '🔊 Escuchar';
+
+  const hoy = new Date().toLocaleDateString('es-CL', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  document.getElementById('ia-fecha').textContent = hoy;
+
+  // Recopilar datos del dashboard
+  const datos = {
+    parkingspot: {
+      estacionamientos: {
+        arrendados: document.getElementById('est-arr')?.textContent || '—',
+        disponibles: document.getElementById('est-disp')?.textContent || '—',
+        avisos: document.getElementById('est-av')?.textContent || '—',
+        facturacion: document.getElementById('est-fact')?.textContent || '—'
+      },
+      bodegas: {
+        arrendadas: document.getElementById('bod-arr')?.textContent || '—',
+        disponibles: document.getElementById('bod-disp')?.textContent || '—',
+        facturacion: document.getElementById('bod-fact')?.textContent || '—'
+      },
+      facturacionTotal: document.getElementById('ps-total-fact')?.textContent || '—',
+      ads: {
+        clicksDia: document.getElementById('ps-ads-clicks-dia')?.textContent || '—',
+        cpc: document.getElementById('ps-ads-cpc')?.textContent || '—',
+        ctr: document.getElementById('ps-ads-ctr')?.textContent || '—',
+        gasto: document.getElementById('ps-ads-gasto')?.textContent || '—'
+      },
+      analytics: {
+        sesionesDia: document.getElementById('ps-ga-ses-dia')?.textContent || '—',
+        rebote: document.getElementById('ps-ga-bounce')?.textContent || '—',
+        clickform: document.getElementById('ps-ga-cf-dia')?.textContent || '—'
+      }
+    },
+    camperSpot: {
+      arriendos: {
+        proximos30dias: document.getElementById('cs-arr-total')?.textContent || '—',
+        proximoEn: document.getElementById('cs-arr-next')?.textContent || '—',
+        proximoNombre: document.getElementById('cs-arr-next-name')?.textContent || '—',
+        porCobrar: document.getElementById('cs-arr-fact')?.textContent || '—'
+      },
+      mesActual: {
+        dias2026: document.getElementById('cs-dias-2026')?.textContent || '—',
+        dias2025: document.getElementById('cs-dias-2025')?.textContent || '—'
+      },
+      ads: {
+        clicksDia: document.getElementById('cs-ads-clicks-dia')?.textContent || '—',
+        cpc: document.getElementById('cs-ads-cpc')?.textContent || '—',
+        ctr: document.getElementById('cs-ads-ctr')?.textContent || '—',
+        gasto: document.getElementById('cs-ads-gasto')?.textContent || '—'
+      },
+      analytics: {
+        sesionesDia: document.getElementById('cs-ga-ses-dia')?.textContent || '—',
+        rebote: document.getElementById('cs-ga-bounce')?.textContent || '—',
+        clickform: document.getElementById('cs-ga-cf-dia')?.textContent || '—'
+      }
+    }
+  };
+
+  const prompt = `Eres el asistente de dashboard de dos negocios chilenos: Parkingspot (estacionamientos y bodegas) y Camper Spot (arriendo de motorhomes). 
+
+Aquí están los datos actuales del dashboard:
+${JSON.stringify(datos, null, 2)}
+
+Genera un resumen ejecutivo conciso en español chileno, en primera persona como si fueras el dashboard hablándole al dueño. 
+- Máximo 5-6 oraciones
+- Destaca lo más importante de cada negocio
+- Menciona si hay algo que requiere atención (avisos de retiro, arriendos próximos, métricas inusuales)
+- Usa números concretos
+- Tono profesional pero cercano
+- NO uses asteriscos, bullets ni formato markdown, solo texto corrido para que suene natural al leerlo en voz alta`;
+
+  try {
+    const res = await fetch('https://anthropic-proxy.miguelduchs.workers.dev', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    iaTexto = data.content?.[0]?.text || 'No se pudo generar el resumen.';
+    document.getElementById('ia-text').textContent = iaTexto;
+  } catch(e) {
+    document.getElementById('ia-text').textContent = 'Error al conectar con la IA. Verifica tu conexión.';
+  }
+}
+
 // ── INICIO ───────────────────────────────────────────────
 loadData();
 loadCsArriendos();
@@ -969,5 +1114,21 @@ let timer=setInterval(()=>{loadData();loadCsArriendos();loadComparacion();loadAd
 document.getElementById('intervalSel').addEventListener('change',function(){clearInterval(timer);timer=setInterval(()=>{loadData();loadCsArriendos();loadComparacion();loadAdsCS();loadGA4CS();loadAdsPS();loadGA4PS();loadCanalesPS();loadCanalesCS();},parseInt(this.value));});
 document.getElementById('refreshBtn').addEventListener('click',()=>{loadData();loadCsArriendos();loadComparacion();loadAdsCS();loadGA4CS();loadAdsPS();loadGA4PS();loadCanalesPS();loadCanalesCS();});
 </script>
+
+<!-- MODAL IA -->
+<div class="ia-modal" id="iaModal">
+  <div class="ia-card">
+    <button class="ia-close" onclick="cerrarModal()">✕</button>
+    <div class="ia-title">🎙 Resumen del día</div>
+    <div class="ia-sub" id="ia-fecha">—</div>
+    <div class="ia-text" id="ia-text"><div class="ia-loading">Analizando datos...</div></div>
+    <div class="ia-btns">
+      <button class="ia-btn" id="ia-voz-btn" onclick="leerEnVoz()">🔊 Escuchar</button>
+      <button class="ia-btn" onclick="cerrarModal()">Cerrar</button>
+      <button class="ia-btn primary" onclick="generarResumen()">↺ Regenerar</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
